@@ -12,10 +12,20 @@ interface KonvaElement {
   radius?: number;
   width?: number;
   height?: number;
+  pageId: number;
+}
+
+interface Page {
+  id: number;
+  name: string;
 }
 
 function KonvaMultiPage() {
   const [elements, setElements] = useState<KonvaElement[]>([]);
+  const [pages, setPages] = useState<Page[]>([{ id: 1, name: "Page 1" }]);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [selectedPage, setSelectedPage] = useState<number | null>(null);
+  const [pageNameInput, setPageNameInput] = useState<string>("");
   const [scale, setScale] = useState(1);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -113,8 +123,43 @@ function KonvaMultiPage() {
         radius: type === "circle" ? 30 : undefined,
         width: type === "rect" ? 100 : undefined,
         height: type === "rect" ? 100 : undefined,
+        pageId: currentPage,
       },
     ]);
+  };
+
+  // Tambah halaman baru
+  const addPage = () => {
+    const newId = pages.length + 1;
+    setPages((prev) => [...prev, { id: newId, name: `Page ${newId}` }]);
+  };
+
+  // Update page name
+  const updatePageName = () => {
+    if (selectedPage && pageNameInput.trim()) {
+      setPages((prev) =>
+        prev.map((page) =>
+          page.id === selectedPage ? { ...page, name: pageNameInput } : page
+        )
+      );
+      setSelectedPage(null);
+    }
+  };
+
+  // Delete page
+  const deletePage = (pageId: number) => {
+    if (pages.length > 1) {
+      setPages((prev) => prev.filter((page) => page.id !== pageId));
+      setElements((prev) => prev.filter((el) => el.pageId !== pageId));
+
+      // If current page is deleted, select the first available page
+      if (currentPage === pageId) {
+        const firstAvailablePage = pages.find((page) => page.id !== pageId);
+        if (firstAvailablePage) {
+          setCurrentPage(firstAvailablePage.id);
+        }
+      }
+    }
   };
 
   // Update posisi saat elemen di-drag
@@ -137,11 +182,37 @@ function KonvaMultiPage() {
         <button onClick={() => setScale((prev) => Math.max(prev - 0.1, 0.5))}>
           Zoom Out
         </button>
+        <button onClick={addPage}>Add Page</button>
       </div>
 
-      {/* <div className="w-[200px] h-[calc(100vh-40px)] absolute top-[40px] right-0 bg-amber-300">
-        <p>properties</p>
-      </div> */}
+      {/* Page Edit Dialog */}
+      {selectedPage !== null && (
+        <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-10">
+          <div className="bg-white p-4 rounded-lg">
+            <h3 className="mb-2">Edit Page Name</h3>
+            <input
+              type="text"
+              className="border p-2 w-full mb-2"
+              value={pageNameInput}
+              onChange={(e) => setPageNameInput(e.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 bg-gray-300"
+                onClick={() => setSelectedPage(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-blue-600 text-white"
+                onClick={updatePageName}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Wrapper Scrollable */}
       <div
@@ -156,16 +227,21 @@ function KonvaMultiPage() {
             gap: `${20 * scale}px`,
           }}
         >
-          {[0, 1, 2].map((index) => (
+          {pages.map((page) => (
             <div
-              key={index}
+              key={page.id}
               style={{
                 width: `${500 * scale}px`,
                 height: `${500 * scale}px`,
                 boxShadow: "0 2px 5px rgba(0,0,0,0.2)",
                 background: "white",
-                border: "1px solid #ddd",
+                border: `${
+                  page.id === currentPage
+                    ? "0.5px solid #0000ff"
+                    : "1px solid #ddd"
+                }`,
               }}
+              onClick={() => setCurrentPage(page.id)}
             >
               <Stage
                 width={500 * scale}
@@ -173,15 +249,21 @@ function KonvaMultiPage() {
                 scale={{ x: scale, y: scale }}
               >
                 <Layer>
-                  {elements.map((el) => (
-                    <KonvaElement
-                      key={el.id}
-                      element={el}
-                      onDragMove={(e) =>
-                        updateElementPosition(el.id, e.target.x(), e.target.y())
-                      }
-                    />
-                  ))}
+                  {elements
+                    .filter((el) => el.pageId === page.id)
+                    .map((el) => (
+                      <KonvaElement
+                        key={el.id}
+                        element={el}
+                        onDragMove={(e) =>
+                          updateElementPosition(
+                            el.id,
+                            e.target.x(),
+                            e.target.y()
+                          )
+                        }
+                      />
+                    ))}
                 </Layer>
               </Stage>
             </div>
